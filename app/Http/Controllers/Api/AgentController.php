@@ -99,11 +99,12 @@ class AgentController extends Controller
                         return response()->json(['success' => false, 'reply' => '⏳ Jatah nanya ke AI lagi penuh, coba 1 menit lagi ya!'], 429);
                     }
                     $errorBody = $response->body();
-                    Log::error('Gemini API Error', ['status' => $response->status(), 'body' => $errorBody]);
+                    Log::error('Gemini API Error', ['status' => $response->status(), 'body' => $errorBody, 'payload' => $payload]);
                     return response()->json([
                         'success' => false, 
                         'reply' => 'Google AI Error (' . $response->status() . ')',
-                        'error_detail' => json_decode($errorBody, true) ?: $errorBody
+                        'error_detail' => json_decode($errorBody, true) ?: $errorBody,
+                        'debug_payload' => $payload
                     ], 500);
                 }
 
