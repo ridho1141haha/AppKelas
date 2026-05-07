@@ -90,6 +90,8 @@ class AgentController extends Controller
                     'tools' => [$tools]
                 ];
 
+                Log::debug('Gemini Payload', $payload);
+
                 $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", $payload);
 
                 if (!$response->successful()) {
