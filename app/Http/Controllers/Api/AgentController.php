@@ -58,19 +58,19 @@ class AgentController extends Controller
             while ($maxIterations > 0) {
                 $maxIterations--;
                 
-                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}", [
+                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
                     'contents' => $history,
                     'system_instruction' => ['parts' => [['text' => $systemInstruction]]],
                     'tools' => $tools
                 ]);
 
                 if (!$response->successful()) {
+                    if ($response->status() === 429) {
+                        return response()->json(['success' => false, 'reply' => '⏳ Jatah nanya ke AI lagi penuh, coba 1 menit lagi ya bos!'], 429);
+                    }
                     $errorBody = substr($response->body(), 0, 500);
                     Log::error('Gemini Error', ['status' => $response->status(), 'body' => $errorBody]);
-                    return response()->json([
-                        'success' => false, 
-                        'reply' => 'Google AI Error (' . $response->status() . '): ' . $errorBody
-                    ], 500);
+                    return response()->json(['success' => false, 'reply' => 'Google AI Error (' . $response->status() . '): ' . $errorBody], 500);
                 }
 
                 $resData = $response->json();
@@ -78,33 +78,18 @@ class AgentController extends Controller
                 $part = $content['parts'][0] ?? null;
 
                 if (!$content) break;
-
-                // Masukin jawaban model ke history
                 $history[] = $content;
 
                 if (isset($part['functionCall'])) {
                     $name = $part['functionCall']['name'];
                     $args = $part['functionCall']['args'] ?? [];
-                    
                     $result = $this->executeLocalFunction($name, $args);
-
-                    // Masukin hasil fungsi ke history
                     $history[] = [
                         'role' => 'function',
-                        'parts' => [
-                            [
-                                'functionResponse' => [
-                                    'name' => $name,
-                                    'response' => ['content' => $result]
-                                ]
-                            ]
-                        ]
+                        'parts' => [['functionResponse' => ['name' => $name, 'response' => ['content' => $result]]]]
                     ];
                 } else {
-                    return response()->json([
-                        'success' => true,
-                        'reply' => $part['text'] ?? 'Aku bingung mau jawab apa.'
-                    ]);
+                    return response()->json(['success' => true, 'reply' => $part['text'] ?? 'Aku bingung mau jawab apa.']);
                 }
             }
 
