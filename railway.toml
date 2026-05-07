@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+buildCommand = "composer install --no-dev && php artisan config:cache && php artisan route:cache"
+
+[deploy]
+startCommand = "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT"
+restartPolicyCondition = "on-failure"
+restartPolicyMaxRetries = 3
