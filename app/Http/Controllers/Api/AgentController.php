@@ -13,7 +13,6 @@ class AgentController extends Controller
 {
     public function chat(Request $request)
     {
-        Log::info('Chat version: 1.1 - Fixed Input Handling');
         // Ambil pesan dari input 'message'. Cek di berbagai kemungkinan lokasi input.
         $message = $request->input('message') ?? $request->post('message') ?? 'Halo';
         
@@ -82,7 +81,7 @@ class AgentController extends Controller
                     'tools' => [$tools]
                 ];
 
-                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={$apiKey}", $payload);
+                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", $payload);
 
                 if (!$response->successful()) {
                     $error = $response->json();
@@ -112,7 +111,7 @@ class AgentController extends Controller
                     $result = $this->executeLocalFunction($name, $args);
                     
                     $history[] = [
-                        'role' => 'model', // Penting: Di API Gemini 1.5, respon fungsi mengikuti role model
+                        'role' => 'function', 
                         'parts' => [
                             [
                                 'functionResponse' => [
