@@ -23,57 +23,81 @@ class AgentController extends Controller
             return response()->json([
                 'success' => false, 
                 'reply' => 'Gagal: API Key Gemini belum terbaca di Railway (Cek Variables).',
-                'debug' => 'Pastikan variabel GEMINI_API_KEY sudah diset di dashboard Railway.'
             ], 500);
         }
 
         try {
+            // Struktur Tools (Function Calling)
             $tools = [
-                [
-                    'function_declarations' => [
-                        ['name' => 'get_tasks', 'description' => 'Ambil daftar tugas sekolah.', 'parameters' => ['type' => 'object', 'properties' => (object)[]]],
-                        ['name' => 'get_schedules', 'description' => 'Ambil jadwal pelajaran.', 'parameters' => ['type' => 'object', 'properties' => (object)[]]],
-                        [
-                            'name' => 'add_task',
-                            'description' => 'Tambah tugas baru.',
-                            'parameters' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'title' => ['type' => 'string'],
-                                    'subject' => ['type' => 'string'],
-                                    'deadline' => ['type' => 'string'],
-                                    'description' => ['type' => 'string']
-                                ],
-                                'required' => ['title', 'subject', 'deadline']
-                            ]
+                'function_declarations' => [
+                    [
+                        'name' => 'get_tasks', 
+                        'description' => 'Ambil semua daftar tugas sekolah atau PR yang ada.', 
+                        'parameters' => [
+                            'type' => 'object', 
+                            'properties' => (object)[]
+                        ]
+                    ],
+                    [
+                        'name' => 'get_schedules', 
+                        'description' => 'Ambil semua jadwal pelajaran sekolah.', 
+                        'parameters' => [
+                            'type' => 'object', 
+                            'properties' => (object)[]
+                        ]
+                    ],
+                    [
+                        'name' => 'add_task',
+                        'description' => 'Menambahkan data tugas baru ke database.',
+                        'parameters' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'title' => ['type' => 'string', 'description' => 'Judul tugas'],
+                                'subject' => ['type' => 'string', 'description' => 'Mata pelajaran'],
+                                'deadline' => ['type' => 'string', 'description' => 'Tanggal pengumpulan (YYYY-MM-DD)'],
+                                'description' => ['type' => 'string', 'description' => 'Detail tugas']
+                            ],
+                            'required' => ['title', 'subject', 'deadline']
                         ]
                     ]
                 ]
             ];
 
+            // Inisialisasi History dengan pesan user pertama
             $history = [
-                ['role' => 'user', 'parts' => [['text' => $message]]]
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['text' => $message]
+                    ]
+                ]
             ];
 
             $today = now()->translatedFormat('l, d F Y');
-            $systemInstruction = "Kamu adalah 'Asisten Kelas' yang cerdas. Hari ini $today. Gunakan fungsi yang tersedia untuk membantu user.";
+            $systemInstruction = "Kamu adalah 'Asisten Kelas' yang ramah. Hari ini adalah $today. Kamu bisa membantu melihat tugas, jadwal, atau menambah tugas baru menggunakan tools yang tersedia. Jawablah dengan bahasa Indonesia yang santai.";
 
             $maxIterations = 5;
             while ($maxIterations > 0) {
                 $maxIterations--;
                 
-                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+                $payload = [
                     'contents' => $history,
-                    'system_instruction' => ['parts' => [['text' => $systemInstruction]]],
-                    'tools' => $tools
-                ]);
+                    'system_instruction' => [
+                        'parts' => [
+                            ['text' => $systemInstruction]
+                        ]
+                    ],
+                    'tools' => [$tools]
+                ];
+
+                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", $payload);
 
                 if (!$response->successful()) {
                     if ($response->status() === 429) {
-                        return response()->json(['success' => false, 'reply' => '⏳ Jatah nanya ke AI lagi penuh, coba 1 menit lagi ya bos!'], 429);
+                        return response()->json(['success' => false, 'reply' => '⏳ Jatah nanya ke AI lagi penuh, coba 1 menit lagi ya!'], 429);
                     }
                     $errorBody = $response->body();
-                    Log::error('Gemini Error', ['status' => $response->status(), 'body' => $errorBody]);
+                    Log::error('Gemini API Error', ['status' => $response->status(), 'body' => $errorBody]);
                     return response()->json([
                         'success' => false, 
                         'reply' => 'Google AI Error (' . $response->status() . ')',
@@ -82,37 +106,58 @@ class AgentController extends Controller
                 }
 
                 $resData = $response->json();
-                $content = $resData['candidates'][0]['content'] ?? null;
+                $candidate = $resData['candidates'][0] ?? null;
+                $content = $candidate['content'] ?? null;
                 
                 if (!$content) {
-                    return response()->json(['success' => false, 'reply' => 'AI tidak memberikan respon (Empty Candidate).', 'raw' => $resData], 500);
+                    return response()->json(['success' => false, 'reply' => 'Maaf, AI tidak memberikan respon.', 'raw' => $resData], 500);
                 }
 
+                // Tambahkan respon AI ke history
                 $history[] = $content;
+
                 $part = $content['parts'][0] ?? null;
 
                 if (isset($part['functionCall'])) {
                     $name = $part['functionCall']['name'];
                     $args = $part['functionCall']['args'] ?? [];
+                    
+                    // Eksekusi fungsi lokal
                     $result = $this->executeLocalFunction($name, $args);
+                    
+                    // Tambahkan hasil fungsi ke history agar AI bisa memprosesnya
                     $history[] = [
-                        'role' => 'function',
-                        'parts' => [['functionResponse' => ['name' => $name, 'response' => ['content' => $result]]]]
+                        'role' => 'model', // Respon fungsi harus dikaitkan dengan role model/function tergantung versi, tapi biasanya model -> user flow
+                        'parts' => [
+                            [
+                                'functionResponse' => [
+                                    'name' => $name,
+                                    'response' => [
+                                        'name' => $name,
+                                        'content' => $result
+                                    ]
+                                ]
+                            ]
+                        ]
                     ];
-                } else {
-                    return response()->json(['success' => true, 'reply' => $part['text'] ?? 'Aku bingung mau jawab apa.']);
+                    // Lanjut iterasi untuk membiarkan AI menjawab berdasarkan hasil fungsi
+                    continue;
+                } 
+                
+                if (isset($part['text'])) {
+                    return response()->json(['success' => true, 'reply' => $part['text']]);
                 }
+
+                break;
             }
 
-            return response()->json(['success' => false, 'reply' => 'Maaf, proses terlalu panjang (Max Iterations).'], 500);
+            return response()->json(['success' => false, 'reply' => 'Maaf, asisten terlalu lama berpikir.'], 500);
 
         } catch (\Exception $e) {
-            Log::error('Chat Error', ['msg' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error('Chat Exception', ['msg' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json([
                 'success' => false, 
-                'reply' => 'Error: ' . $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'reply' => 'Terjadi kesalahan sistem: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -121,10 +166,15 @@ class AgentController extends Controller
     {
         try {
             switch ($name) {
-                case 'get_tasks': return Task::all()->toArray();
-                case 'get_schedules': return Schedule::all()->toArray();
-                case 'add_task': return Task::create($args)->toArray();
-                default: return ['error' => 'Fungsi tidak ditemukan'];
+                case 'get_tasks': 
+                    return Task::all()->take(10)->toArray();
+                case 'get_schedules': 
+                    return Schedule::all()->take(10)->toArray();
+                case 'add_task': 
+                    $task = Task::create($args);
+                    return ['status' => 'success', 'data' => $task->toArray()];
+                default: 
+                    return ['error' => 'Fungsi tidak ditemukan'];
             }
         } catch (\Exception $e) {
             return ['error' => $e->getMessage()];
