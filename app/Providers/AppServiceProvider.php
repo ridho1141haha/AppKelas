@@ -26,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
                     '--force' => true,
                 ]);
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Auto-migration failed: ' . $e.getMessage());
+                \Illuminate\Support\Facades\Log::error('Auto-migration failed: ' . $e->getMessage());
             }
         }
     }
