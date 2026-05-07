@@ -17,10 +17,10 @@ class AgentController extends Controller
         Log::info('Chat endpoint hit', ['request' => $request->all()]);
         
         $message = $request->input('message');
-        $apiKey = env('GEMINI_API_KEY');
+        $apiKey = config('services.gemini.api_key');
 
         if (!$apiKey) {
-            return response()->json(['success' => false, 'reply' => 'Gagal: API Key Gemini belum diset di Railway.'], 500);
+            return response()->json(['success' => false, 'reply' => 'Gagal: API Key Gemini belum terbaca di Railway (Cek Variables).'], 500);
         }
 
         try {

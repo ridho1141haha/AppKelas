@@ -142,17 +142,23 @@ public class ChatActivity extends AppCompatActivity {
                     }
                 } else {
                     Log.e(TAG, "API Error: " + response.code());
-                    String errorMsg = response.code() == 429
-                            ? "⏳ Kuota AI habis. Coba lagi nanti ya!"
-                            : "Gagal terhubung ke server (Error " + response.code() + ").";
+                    String errorMsg = "Gagal (Error " + response.code() + ")";
+                    try {
+                        if (response.errorBody() != null) {
+                            errorMsg += ": " + response.errorBody().string();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading error body: " + e.getMessage());
+                    }
                     chatAdapter.addMessage(new ChatMessage(errorMsg, false));
+                    rvChat.scrollToPosition(chatList.size() - 1);
                 }
             }
 
             @Override
             public void onFailure(Call<JsonObject> call, Throwable t) {
                 Log.e(TAG, "Network Failure: " + t.getMessage());
-                chatAdapter.addMessage(new ChatMessage("Koneksi bermasalah. Pastikan server Laravel aktif.", false));
+                chatAdapter.addMessage(new ChatMessage("Koneksi bermasalah: " + t.getMessage(), false));
             }
         });
     }
