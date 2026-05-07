@@ -20,7 +20,11 @@ class AgentController extends Controller
         $apiKey = config('services.gemini.api_key');
 
         if (!$apiKey) {
-            return response()->json(['success' => false, 'reply' => 'Gagal: API Key Gemini belum terbaca di Railway (Cek Variables).'], 500);
+            return response()->json([
+                'success' => false, 
+                'reply' => 'Gagal: API Key Gemini belum terbaca di Railway (Cek Variables).',
+                'debug' => 'Pastikan variabel GEMINI_API_KEY sudah diset di dashboard Railway.'
+            ], 500);
         }
 
         try {
@@ -68,17 +72,24 @@ class AgentController extends Controller
                     if ($response->status() === 429) {
                         return response()->json(['success' => false, 'reply' => '⏳ Jatah nanya ke AI lagi penuh, coba 1 menit lagi ya bos!'], 429);
                     }
-                    $errorBody = substr($response->body(), 0, 500);
+                    $errorBody = $response->body();
                     Log::error('Gemini Error', ['status' => $response->status(), 'body' => $errorBody]);
-                    return response()->json(['success' => false, 'reply' => 'Google AI Error (' . $response->status() . '): ' . $errorBody], 500);
+                    return response()->json([
+                        'success' => false, 
+                        'reply' => 'Google AI Error (' . $response->status() . ')',
+                        'error_detail' => json_decode($errorBody, true) ?: $errorBody
+                    ], 500);
                 }
 
                 $resData = $response->json();
                 $content = $resData['candidates'][0]['content'] ?? null;
-                $part = $content['parts'][0] ?? null;
+                
+                if (!$content) {
+                    return response()->json(['success' => false, 'reply' => 'AI tidak memberikan respon (Empty Candidate).', 'raw' => $resData], 500);
+                }
 
-                if (!$content) break;
                 $history[] = $content;
+                $part = $content['parts'][0] ?? null;
 
                 if (isset($part['functionCall'])) {
                     $name = $part['functionCall']['name'];
@@ -93,11 +104,16 @@ class AgentController extends Controller
                 }
             }
 
-            return response()->json(['success' => false, 'reply' => 'Maaf, proses terlalu panjang.'], 500);
+            return response()->json(['success' => false, 'reply' => 'Maaf, proses terlalu panjang (Max Iterations).'], 500);
 
         } catch (\Exception $e) {
-            Log::error('Chat Error', ['msg' => $e->getMessage()]);
-            return response()->json(['success' => false, 'reply' => 'Error: ' . $e->getMessage()], 500);
+            Log::error('Chat Error', ['msg' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'success' => false, 
+                'reply' => 'Error: ' . $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 500);
         }
     }
 
