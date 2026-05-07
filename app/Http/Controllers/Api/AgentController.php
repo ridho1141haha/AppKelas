@@ -65,8 +65,12 @@ class AgentController extends Controller
                 ]);
 
                 if (!$response->successful()) {
-                    Log::error('Gemini Error', ['status' => $response->status(), 'body' => $response->body()]);
-                    return response()->json(['success' => false, 'reply' => 'Maaf, ada gangguan koneksi ke Google AI.'], 500);
+                    $errorBody = substr($response->body(), 0, 500);
+                    Log::error('Gemini Error', ['status' => $response->status(), 'body' => $errorBody]);
+                    return response()->json([
+                        'success' => false, 
+                        'reply' => 'Google AI Error (' . $response->status() . '): ' . $errorBody
+                    ], 500);
                 }
 
                 $resData = $response->json();
