@@ -1,7 +1,8 @@
 [build]
 builder = "nixpacks"
-buildCommand = "composer install --no-dev --optimize-autoloader --no-scripts && chmod -R 777 storage bootstrap/cache"
+buildCommand = "composer install --no-dev --optimize-autoloader --no-scripts"
 
 [deploy]
-startCommand = "php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache"
+startCommand = "php artisan migrate --force && php artisan config:clear && php artisan serve --host=0.0.0.0 --port=$PORT"
 restartPolicyCondition = "on-failure"
+
