@@ -11,10 +11,8 @@ class ScheduleController extends Controller
 {
     public function index()
     {
-        // Urutkan berdasarkan hari dan waktu mulai
-        $schedules = Schedule::orderBy('day', 'asc')
-                             ->orderBy('start_time', 'asc')
-                             ->get();
+        // Urutkan berdasarkan ID
+        $schedules = Schedule::orderBy('id', 'asc')->get();
 
         return response()->json([
             'success' => true,
@@ -26,11 +24,10 @@ class ScheduleController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'day'        => 'required|string|max:50',
-            'start_time' => 'required|date_format:H:i', // misal: 07:30
-            'end_time'   => 'required|date_format:H:i|after:start_time',
-            'subject'    => 'required|string|max:255',
-            'teacher'    => 'nullable|string|max:255'
+            'day'            => 'required|string|max:50',
+            'type'           => 'required|string|max:255',
+            'subjects'       => 'required|string',
+            'dismissal_time' => 'required|string'
         ]);
 
         if ($validator->fails()) {
@@ -82,11 +79,10 @@ class ScheduleController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'day'        => 'sometimes|required|string|max:50',
-            'start_time' => 'sometimes|required|date_format:H:i',
-            'end_time'   => 'sometimes|required|date_format:H:i',
-            'subject'    => 'sometimes|required|string|max:255',
-            'teacher'    => 'nullable|string|max:255'
+            'day'            => 'sometimes|required|string|max:50',
+            'type'           => 'sometimes|required|string|max:255',
+            'subjects'       => 'sometimes|required|string',
+            'dismissal_time' => 'sometimes|required|string'
         ]);
 
         if ($validator->fails()) {
