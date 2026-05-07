@@ -13,6 +13,7 @@ class AgentController extends Controller
 {
     public function chat(Request $request)
     {
+        Log::info('Chat version: 1.1 - Fixed Input Handling');
         // Ambil pesan dari input 'message'. Cek di berbagai kemungkinan lokasi input.
         $message = $request->input('message') ?? $request->post('message') ?? 'Halo';
         
