@@ -1,14 +1,13 @@
 package com.ridho.appkelas;
 
 import android.app.AlertDialog;
-import android.graphics.Color;
-import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ridho.appkelas.models.Task;
@@ -51,16 +50,23 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         Task task = taskList.get(position);
         holder.tvTitle.setText(task.getTitle());
         holder.tvSubject.setText(task.getSubject());
-        holder.tvDescription.setText(task.getDescription());
+        holder.tvDescription.setText(task.getDescription() != null ? task.getDescription() : "Tidak ada deskripsi");
         holder.tvDeadline.setText("Deadline: " + task.getDeadline());
 
-        // Kasih visual indicator kalau udah selesai
+        // Status Badge styling
         if ("completed".equals(task.getStatus())) {
-            holder.tvTitle.setTextColor(Color.GRAY);
-            holder.tvTitle.setTypeface(null, Typeface.ITALIC);
+            holder.tvStatus.setText("✅ Selesai");
+            holder.tvStatus.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.status_completed));
+            holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_completed);
+
+            // Completed visual: slightly faded title
+            holder.tvTitle.setAlpha(0.6f);
         } else {
-            holder.tvTitle.setTextColor(Color.BLACK);
-            holder.tvTitle.setTypeface(null, Typeface.BOLD);
+            holder.tvStatus.setText("⏳ Pending");
+            holder.tvStatus.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.status_pending));
+            holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_pending);
+
+            holder.tvTitle.setAlpha(1.0f);
         }
 
         // Card Diklik -> Pop-up Detail + Tombol Aksi
@@ -69,27 +75,26 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
 
             AlertDialog dialog = new AlertDialog.Builder(v.getContext())
                     .setTitle(task.getTitle())
-                    .setMessage("Mapel: " + task.getSubject() + "\n\n" +
-                            "Deskripsi:\n" + (task.getDescription() != null ? task.getDescription() : "-") + "\n\n" +
-                            "Deadline: " + task.getDeadline() + "\n" +
-                            "Status: " + statusLabel)
+                    .setMessage("📚 Mapel: " + task.getSubject() + "\n\n" +
+                            "📝 Deskripsi:\n" + (task.getDescription() != null ? task.getDescription() : "-") + "\n\n" +
+                            "🗓️ Deadline: " + task.getDeadline() + "\n" +
+                            "📊 Status: " + statusLabel)
                     .setPositiveButton("Tutup", (d, which) -> d.dismiss())
                     .setNegativeButton("✅ Selesai", (d, which) -> {
                         if (listener != null) {
                             listener.onMarkComplete(task, holder.getAdapterPosition());
                         }
                     })
-                    .setNeutralButton("🗑️ Hapus", null) // Set null dulu, override dibawah
+                    .setNeutralButton("🗑️ Hapus", null)
                     .create();
 
             dialog.show();
 
             // Override tombol Hapus biar bisa kasih konfirmasi dulu
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(view -> {
-                // Konfirmasi hapus
                 new AlertDialog.Builder(v.getContext())
-                        .setTitle("Konfirmasi Hapus")
-                        .setMessage("Yakin mau hapus tugas \"" + task.getTitle() + "\"?")
+                        .setTitle("⚠️ Konfirmasi Hapus")
+                        .setMessage("Yakin mau hapus tugas \"" + task.getTitle() + "\"?\nAksi ini tidak bisa dibatalkan.")
                         .setPositiveButton("Ya, Hapus", (d2, w2) -> {
                             if (listener != null) {
                                 listener.onDelete(task, holder.getAdapterPosition());
@@ -117,9 +122,6 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         notifyDataSetChanged();
     }
 
-    /**
-     * Hapus item dari list secara lokal (setelah API berhasil).
-     */
     public void removeItem(int position) {
         if (position >= 0 && position < taskList.size()) {
             taskList.remove(position);
@@ -128,9 +130,6 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         }
     }
 
-    /**
-     * Update item status secara lokal (setelah API berhasil).
-     */
     public void markItemComplete(int position) {
         if (position >= 0 && position < taskList.size()) {
             taskList.get(position).setStatus("completed");
@@ -139,7 +138,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
     }
 
     public static class TaskViewHolder extends RecyclerView.ViewHolder {
-        TextView tvTitle, tvSubject, tvDeadline, tvDescription;
+        TextView tvTitle, tvSubject, tvDeadline, tvDescription, tvStatus;
 
         public TaskViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -147,6 +146,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             tvSubject = itemView.findViewById(R.id.tv_task_subject);
             tvDescription = itemView.findViewById(R.id.tv_task_description);
             tvDeadline = itemView.findViewById(R.id.tv_task_deadline);
+            tvStatus = itemView.findViewById(R.id.tv_task_status);
         }
     }
 }

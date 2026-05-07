@@ -1,165 +1,182 @@
 package com.ridho.appkelas;
 
-import android.os.Bundle;
-
-import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-
 import android.content.Intent;
-import android.widget.TextView;
-import android.util.Log;
-import android.widget.Toast;
+import android.content.SharedPreferences;
+import android.os.Bundle;
+import android.view.MenuItem;
 
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBarDrawerToggle;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.fragment.app.Fragment;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.gson.JsonObject;
-import com.ridho.appkelas.models.Task;
-import com.ridho.appkelas.models.TaskResponse;
+import com.google.android.material.navigation.NavigationView;
 
-import java.util.ArrayList;
-import java.util.List;
+/**
+ * MainActivity.java
+ * Activity utama dengan Navigation Drawer (Sidebar).
+ * Menggunakan Fragment untuk konten: TaskFragment & ScheduleFragment.
+ * Mendukung toggle dark/light mode.
+ */
+public class MainActivity extends AppCompatActivity
+        implements NavigationView.OnNavigationItemSelectedListener {
 
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-
-public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskActionListener {
-
-    private static final String TAG = "MainActivityAPI";
-    private RecyclerView rvTasks;
-    private TaskAdapter taskAdapter;
+    private DrawerLayout drawerLayout;
+    private NavigationView navigationView;
+    private Toolbar toolbar;
     private FloatingActionButton fabChat;
-    private SwipeRefreshLayout swipeRefreshLayout;
-    private ApiInterface apiInterface;
+
+    private static final String PREFS_NAME = "AppKelasPrefs";
+    private static final String KEY_DARK_MODE = "dark_mode";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Terapkan theme sebelum setContentView
+        applySavedTheme();
+
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
 
-        // Inisialisasi API client sekali aja
-        apiInterface = ApiClient.getClient().create(ApiInterface.class);
+        // ==========================================
+        // 1. Setup Toolbar
+        // ==========================================
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
-        // Inisialisasi RecyclerView
-        rvTasks = findViewById(R.id.rv_tasks);
-        rvTasks.setLayoutManager(new LinearLayoutManager(this));
+        // ==========================================
+        // 2. Setup Drawer Layout + Toggle (Hamburger)
+        // ==========================================
+        drawerLayout = findViewById(R.id.drawer_layout);
+        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                this, drawerLayout, toolbar,
+                R.string.navigation_drawer_open,
+                R.string.navigation_drawer_close
+        );
+        drawerLayout.addDrawerListener(toggle);
+        toggle.syncState();
 
-        taskAdapter = new TaskAdapter(new ArrayList<>());
-        taskAdapter.setOnTaskActionListener(this); // Set listener
-        rvTasks.setAdapter(taskAdapter);
+        // Bikin icon hamburger warna putih
+        toggle.getDrawerArrowDrawable().setColor(getResources().getColor(R.color.white));
 
-        // Inisialisasi SwipeRefreshLayout
-        swipeRefreshLayout = findViewById(R.id.swipe_refresh);
-        swipeRefreshLayout.setOnRefreshListener(this::fetchTasks);
+        // ==========================================
+        // 3. Setup Navigation View (Sidebar)
+        // ==========================================
+        navigationView = findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
 
-        // Inisialisasi FAB Chat
+        // Update label toggle theme sesuai mode aktif
+        updateThemeMenuLabel();
+
+        // ==========================================
+        // 4. Setup FAB Chat
+        // ==========================================
         fabChat = findViewById(R.id.fab_chat);
         fabChat.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, ChatActivity.class);
             startActivity(intent);
         });
 
-        // Panggil API Tasks
-        fetchTasks();
+        // ==========================================
+        // 5. Load Default Fragment (Tugas)
+        // ==========================================
+        if (savedInstanceState == null) {
+            loadFragment(new TaskFragment());
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle("Daftar Tugas");
+            }
+            navigationView.setCheckedItem(R.id.nav_task);
+        }
     }
 
+    // ==========================================
+    // Handle Navigasi Menu Sidebar
+    // ==========================================
     @Override
-    protected void onResume() {
-        super.onResume();
-        // Refresh otomatis tiap kali user balik ke dashboard
-        fetchTasks();
+    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        int itemId = item.getItemId();
+
+        if (itemId == R.id.nav_task) {
+            loadFragment(new TaskFragment());
+            if (getSupportActionBar() != null) getSupportActionBar().setTitle("Daftar Tugas");
+
+        } else if (itemId == R.id.nav_schedule) {
+            loadFragment(new ScheduleFragment());
+            if (getSupportActionBar() != null) getSupportActionBar().setTitle("Jadwal Pelajaran");
+
+        } else if (itemId == R.id.nav_material) {
+            loadFragment(new MaterialFragment());
+            if (getSupportActionBar() != null) getSupportActionBar().setTitle("Materi Pelajaran");
+
+        } else if (itemId == R.id.nav_toggle_theme) {
+            toggleDarkMode();
+            return true; // Jangan tutup drawer langsung, biar recreate dulu
+        }
+
+        drawerLayout.closeDrawer(GravityCompat.START);
+        return true;
     }
 
     // ==========================================
-    // Callback dari TaskAdapter
+    // Dark/Light Mode Logic
     // ==========================================
 
+    private void applySavedTheme() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        boolean isDark = prefs.getBoolean(KEY_DARK_MODE, false);
+        AppCompatDelegate.setDefaultNightMode(
+                isDark ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
+        );
+    }
+
+    private void toggleDarkMode() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        boolean isDark = prefs.getBoolean(KEY_DARK_MODE, false);
+
+        // Flip it
+        boolean newMode = !isDark;
+        prefs.edit().putBoolean(KEY_DARK_MODE, newMode).apply();
+
+        // Apply
+        AppCompatDelegate.setDefaultNightMode(
+                newMode ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
+        );
+        // Activity akan otomatis recreate
+    }
+
+    private void updateThemeMenuLabel() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        boolean isDark = prefs.getBoolean(KEY_DARK_MODE, false);
+
+        MenuItem themeItem = navigationView.getMenu().findItem(R.id.nav_toggle_theme);
+        if (themeItem != null) {
+            themeItem.setTitle(isDark ? "☀️ Mode Terang" : "🌙 Mode Gelap");
+        }
+    }
+
+    // ==========================================
+    // Helper: Load Fragment ke Container
+    // ==========================================
+    private void loadFragment(Fragment fragment) {
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .commit();
+    }
+
+    // ==========================================
+    // Handle Back Button (tutup drawer dulu)
+    // ==========================================
     @Override
-    public void onMarkComplete(Task task, int position) {
-        apiInterface.updateTask(task.getId(), "completed").enqueue(new Callback<JsonObject>() {
-            @Override
-            public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
-                if (response.isSuccessful()) {
-                    taskAdapter.markItemComplete(position);
-                    Toast.makeText(MainActivity.this, "✅ Tugas ditandai selesai!", Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "Task " + task.getId() + " marked complete");
-                } else {
-                    Toast.makeText(MainActivity.this, "Gagal update: " + response.code(), Toast.LENGTH_SHORT).show();
-                    Log.e(TAG, "Update failed: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<JsonObject> call, Throwable t) {
-                Toast.makeText(MainActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "Update error: " + t.getMessage());
-            }
-        });
-    }
-
-    @Override
-    public void onDelete(Task task, int position) {
-        apiInterface.deleteTask(task.getId()).enqueue(new Callback<JsonObject>() {
-            @Override
-            public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
-                if (response.isSuccessful()) {
-                    taskAdapter.removeItem(position);
-                    Toast.makeText(MainActivity.this, "🗑️ Tugas berhasil dihapus!", Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "Task " + task.getId() + " deleted");
-                } else {
-                    Toast.makeText(MainActivity.this, "Gagal hapus: " + response.code(), Toast.LENGTH_SHORT).show();
-                    Log.e(TAG, "Delete failed: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<JsonObject> call, Throwable t) {
-                Toast.makeText(MainActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "Delete error: " + t.getMessage());
-            }
-        });
-    }
-
-    // ==========================================
-    // Fetch Tasks dari API
-    // ==========================================
-
-    private void fetchTasks() {
-        apiInterface.getTasks().enqueue(new Callback<TaskResponse>() {
-            @Override
-            public void onResponse(Call<TaskResponse> call, Response<TaskResponse> response) {
-                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
-                
-                if (response.isSuccessful() && response.body() != null) {
-                    List<Task> tasks = response.body().getData();
-                    Log.d(TAG, "Jumlah Tugas: " + tasks.size());
-
-                    // Update data ke adapter
-                    taskAdapter.updateData(tasks);
-                } else {
-                    Log.e(TAG, "Response Gagal: " + response.code());
-                    Toast.makeText(MainActivity.this, "Gagal: " + response.code(), Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<TaskResponse> call, Throwable t) {
-                if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
-                Log.e(TAG, "Error Network: " + t.getMessage());
-                Toast.makeText(MainActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
+    public void onBackPressed() {
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START);
+        } else {
+            super.onBackPressed();
+        }
     }
 }

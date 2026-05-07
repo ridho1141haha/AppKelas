@@ -2,8 +2,12 @@ package com.ridho.appkelas;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.Button;
+import android.view.View;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -30,7 +34,9 @@ public class ChatActivity extends AppCompatActivity {
     private RecyclerView rvChat;
     private ChatAdapter chatAdapter;
     private EditText etMessage;
-    private Button btnSend;
+    private ImageButton btnSend;
+    private HorizontalScrollView suggestionContainer;
+    private LinearLayout llSuggestions;
     private List<ChatMessage> chatList;
 
     @Override
@@ -49,6 +55,8 @@ public class ChatActivity extends AppCompatActivity {
         rvChat = findViewById(R.id.rv_chat);
         etMessage = findViewById(R.id.et_chat_message);
         btnSend = findViewById(R.id.btn_send_chat);
+        suggestionContainer = findViewById(R.id.suggestion_container);
+        llSuggestions = findViewById(R.id.ll_suggestions);
 
         // Setup RecyclerView
         chatList = new ArrayList<>();
@@ -57,30 +65,74 @@ public class ChatActivity extends AppCompatActivity {
         rvChat.setAdapter(chatAdapter);
 
         // Sapaan awal dari Bot
-        chatAdapter.addMessage(new ChatMessage("Halo! Ada yang bisa saya bantu terkait tugas Anda?", false));
-        
+        chatAdapter.addMessage(new ChatMessage("Halo! 👋 Ada yang bisa saya bantu? Pilih saran di bawah atau ketik langsung!", false));
+
+        // Setup Suggestion Chips
+        setupSuggestionChips();
+
+        // Tombol Kirim
         btnSend.setOnClickListener(v -> {
             String message = etMessage.getText().toString().trim();
             if (!message.isEmpty()) {
-                // 1. Tampilkan pesan user ke list
-                chatAdapter.addMessage(new ChatMessage(message, true));
-                rvChat.scrollToPosition(chatList.size() - 1);
-                etMessage.setText("");
-
-                // 2. Kirim ke API Laravel
-                sendChatMessage(message);
+                sendUserMessage(message);
             }
         });
     }
 
+    /**
+     * Setup klik listener untuk setiap chip saran.
+     * Setiap chip punya 'tag' yang berisi pesan lengkap untuk dikirim ke AI.
+     */
+    private void setupSuggestionChips() {
+        for (int i = 0; i < llSuggestions.getChildCount(); i++) {
+            View child = llSuggestions.getChildAt(i);
+            if (child instanceof TextView) {
+                child.setOnClickListener(v -> {
+                    String message = (String) v.getTag();
+                    if (message != null && !message.isEmpty()) {
+                        sendUserMessage(message);
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Kirim pesan user: tampilkan di chat, sembunyikan saran, kirim ke API.
+     */
+    private void sendUserMessage(String message) {
+        // 1. Tampilkan pesan user ke list
+        chatAdapter.addMessage(new ChatMessage(message, true));
+        rvChat.scrollToPosition(chatList.size() - 1);
+        etMessage.setText("");
+
+        // 2. Sembunyikan suggestion chips setelah user mulai chat
+        hideSuggestions();
+
+        // 3. Kirim ke API Laravel
+        sendChatMessage(message);
+    }
+
+    /**
+     * Sembunyikan suggestion chips dengan animasi fade-out.
+     */
+    private void hideSuggestions() {
+        if (suggestionContainer.getVisibility() == View.VISIBLE) {
+            suggestionContainer.animate()
+                    .alpha(0f)
+                    .setDuration(200)
+                    .withEndAction(() -> suggestionContainer.setVisibility(View.GONE))
+                    .start();
+        }
+    }
+
     private void sendChatMessage(String message) {
-        ApiInterface apiInterface = ApiClient.getClient().create(ApiInterface.class);
+        ApiInterface apiInterface = ApiClient.getClient(this).create(ApiInterface.class);
         apiInterface.sendMessage(message).enqueue(new Callback<JsonObject>() {
             @Override
             public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     try {
-                        // Sesuaikan dengan struktur JSON dari Laravel AgentController
                         String botReply = response.body().get("reply").getAsString();
                         chatAdapter.addMessage(new ChatMessage(botReply, false));
                         rvChat.scrollToPosition(chatList.size() - 1);
@@ -90,7 +142,10 @@ public class ChatActivity extends AppCompatActivity {
                     }
                 } else {
                     Log.e(TAG, "API Error: " + response.code());
-                    chatAdapter.addMessage(new ChatMessage("Gagal terhubung ke server (Error " + response.code() + ").", false));
+                    String errorMsg = response.code() == 429
+                            ? "⏳ Kuota AI habis. Coba lagi nanti ya!"
+                            : "Gagal terhubung ke server (Error " + response.code() + ").";
+                    chatAdapter.addMessage(new ChatMessage(errorMsg, false));
                 }
             }
 

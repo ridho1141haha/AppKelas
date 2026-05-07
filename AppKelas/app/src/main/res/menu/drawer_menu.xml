@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_task"
+            android:icon="@android:drawable/ic_menu_agenda"
+            android:title="Daftar Tugas" />
+        <item
+            android:id="@+id/nav_schedule"
+            android:icon="@android:drawable/ic_menu_today"
+            android:title="Jadwal Pelajaran" />
+        <item
+            android:id="@+id/nav_material"
+            android:icon="@android:drawable/ic_menu_save"
+            android:title="Materi Pelajaran" />
+    </group>
+
+    <!-- Separator -->
+    <item android:title="Pengaturan">
+        <menu>
+            <item
+                android:id="@+id/nav_toggle_theme"
+                android:icon="@android:drawable/ic_menu_view"
+                android:title="Mode Gelap / Terang" />
+        </menu>
+    </item>
+
+</menu>

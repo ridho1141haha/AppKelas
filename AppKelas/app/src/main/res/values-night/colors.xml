@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Palette - Lighter in dark mode -->
+    <color name="primary">#818CF8</color>
+    <color name="primary_dark">#0F172A</color>
+    <color name="primary_light">#A5B4FC</color>
+    <color name="primary_surface">#1E1B4B</color>
+
+    <!-- Secondary - Teal Accent -->
+    <color name="secondary">#5EEAD4</color>
+    <color name="secondary_light">#99F6E4</color>
+
+    <!-- Neutral -->
+    <color name="bg_main">#0F172A</color>
+    <color name="bg_card">#1E293B</color>
+    <color name="bg_dark">#0F172A</color>
+    <color name="bg_dark_card">#1E293B</color>
+    <color name="bg_dark_surface">#334155</color>
+
+    <!-- Text -->
+    <color name="text_primary">#F1F5F9</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_on_primary">#FFFFFF</color>
+    <color name="text_dark_primary">#F1F5F9</color>
+    <color name="text_dark_secondary">#94A3B8</color>
+
+    <!-- Status -->
+    <color name="status_pending">#FBBF24</color>
+    <color name="status_pending_bg">#422006</color>
+    <color name="status_completed">#34D399</color>
+    <color name="status_completed_bg">#064E3B</color>
+    <color name="status_overdue">#F87171</color>
+    <color name="status_overdue_bg">#450A0A</color>
+
+    <!-- Chat -->
+    <color name="chat_user_bg">#6366F1</color>
+    <color name="chat_bot_bg">#1E293B</color>
+    <color name="chat_bot_text">#E2E8F0</color>
+    <color name="chat_input_bg">#1E293B</color>
+    <color name="chat_input_stroke">#475569</color>
+
+    <!-- FAB -->
+    <color name="fab_bg">#6366F1</color>
+    <color name="fab_icon">#FFFFFF</color>
+
+    <!-- Divider -->
+    <color name="divider">#334155</color>
+
+    <!-- Standard -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

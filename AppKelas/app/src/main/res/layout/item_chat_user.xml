@@ -4,14 +4,22 @@
     android:layout_height="wrap_content"
     android:gravity="end"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:paddingStart="60dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
 
     <TextView
         android:id="@+id/tv_chat_message"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@android:color/holo_blue_light"
-        android:padding="12dp"
+        android:background="@drawable/bg_chat_user"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
         android:text="Pesan User"
-        android:textColor="@android:color/white" />
+        android:textColor="@color/text_on_primary"
+        android:textSize="14sp"
+        android:lineSpacingExtra="2dp" />
 </LinearLayout>

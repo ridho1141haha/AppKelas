@@ -1,8 +1,8 @@
 package com.ridho.appkelas;
 
+import android.content.Context;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.logging.HttpLoggingInterceptor;
@@ -12,49 +12,47 @@ import retrofit2.converter.gson.GsonConverterFactory;
 /**
  * ApiClient.java
  * Singleton class untuk inisialisasi Retrofit.
+ * Sekarang menggunakan SessionManager untuk mengambil Token secara dinamis.
  */
 public class ApiClient {
 
-    // GANTI IP INI dengan IP lokal laptop/PC lu (cek pake 'ipconfig' di cmd)
-    // Jangan pake localhost/127.0.0.1 karena itu ngerujuk ke emulatornya sendiri.
     private static final String BASE_URL = "http://192.168.137.1:8080/api/"; 
-    
-    // GANTI TOKEN INI dengan token yang didapet pas login
-    private static final String AUTH_TOKEN = "2|mJpWTfdTraD0nMvBe2vFVBVg10xy6SFOyHV2qNdc35e233c4";
-
     private static Retrofit retrofit = null;
 
-    public static Retrofit getClient() {
+    public static Retrofit getClient(Context context) {
         if (retrofit == null) {
-            // 1. Setup Logging Interceptor (Biar keliatan di Logcat request/respon-nya)
             HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
             logging.setLevel(HttpLoggingInterceptor.Level.BODY);
 
-            // 2. Setup OkHttpClient dengan Auth Interceptor
+            SessionManager sessionManager = new SessionManager(context);
+
             OkHttpClient client = new OkHttpClient.Builder()
                     .addInterceptor(logging)
                     .addInterceptor(chain -> {
                         Request original = chain.request();
-                        Request request = original.newBuilder()
-                                .header("Authorization", "Bearer " + AUTH_TOKEN)
-                                .header("Accept", "application/json")
-                                .method(original.method(), original.body())
-                                .build();
-                        return chain.proceed(request);
+                        Request.Builder requestBuilder = original.newBuilder()
+                                .header("Accept", "application/json");
+
+                        String token = sessionManager.getAuthToken();
+                        if (token != null) {
+                            requestBuilder.header("Authorization", "Bearer " + token);
+                        }
+
+                        return chain.proceed(requestBuilder.build());
                     })
                     .build();
 
-            // 3. Build Retrofit
-            Gson gson = new GsonBuilder()
-                    .setLenient()
-                    .create();
-
             retrofit = new Retrofit.Builder()
                     .baseUrl(BASE_URL)
-                    .addConverterFactory(GsonConverterFactory.create(gson))
+                    .addConverterFactory(GsonConverterFactory.create(new GsonBuilder().setLenient().create()))
                     .client(client)
                     .build();
         }
+        return retrofit;
+    }
+
+    public static Retrofit getClient() {
+        // Warning: This might return null if getClient(Context) hasn't been called.
         return retrofit;
     }
 }

@@ -16,26 +16,20 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Top Row: Subject Chip + Status Badge -->
+        <!-- Top Row: Day + Type Badge -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-            <!-- Subject Chip -->
             <TextView
-                android:id="@+id/tv_task_subject"
+                android:id="@+id/tv_schedule_day"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_subject_chip"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:text="Mata Pelajaran"
-                android:textColor="@color/primary"
-                android:textSize="11sp"
+                android:text="Senin"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
                 android:textStyle="bold" />
 
             <View
@@ -43,85 +37,62 @@
                 android:layout_height="0dp"
                 android:layout_weight="1" />
 
-            <!-- Status Badge -->
             <TextView
-                android:id="@+id/tv_task_status"
+                android:id="@+id/tv_schedule_type"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_pending"
+                android:background="@drawable/bg_subject_chip"
                 android:paddingStart="10dp"
                 android:paddingEnd="10dp"
                 android:paddingTop="4dp"
                 android:paddingBottom="4dp"
-                android:text="⏳ Pending"
-                android:textColor="@color/status_pending"
+                android:text="Normatif-Adaptif"
+                android:textColor="@color/primary"
                 android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Title -->
+        <!-- Subjects List -->
         <TextView
-            android:id="@+id/tv_task_title"
+            android:id="@+id/tv_schedule_subjects"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="Judul Tugas"
+            android:layout_marginTop="12dp"
+            android:text="B.ING - B.JAWA - MAT - B.INDO - SEJ"
             android:textColor="@color/text_primary"
-            android:textSize="17sp"
-            android:textStyle="bold"
-            android:lineSpacingExtra="2dp" />
-
-        <!-- Description -->
-        <TextView
-            android:id="@+id/tv_task_description"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:ellipsize="end"
-            android:maxLines="2"
-            android:text="Deskripsi tugas singkat..."
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp"
-            android:lineSpacingExtra="2dp" />
+            android:textSize="15sp"
+            android:lineSpacingExtra="4dp" />
 
         <!-- Divider -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="16dp"
             android:background="@color/divider" />
 
-        <!-- Bottom Row: Deadline -->
+        <!-- Bottom Row: Dismissal Time -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="12dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🗓️"
+                android:text="🕒"
                 android:textSize="14sp" />
 
             <TextView
-                android:id="@+id/tv_task_deadline"
-                android:layout_width="0dp"
+                android:id="@+id/tv_schedule_dismissal"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_weight="1"
-                android:text="Deadline: 2026-05-10"
+                android:layout_marginStart="8dp"
+                android:text="Pulang: 15.15"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Tap untuk detail →"
-                android:textColor="@color/primary_light"
-                android:textSize="11sp"
-                android:alpha="0.8" />
         </LinearLayout>
 
     </LinearLayout>

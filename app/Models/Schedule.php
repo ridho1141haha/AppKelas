@@ -11,9 +11,8 @@ class Schedule extends Model
 
     protected $fillable = [
         'day',
-        'start_time',
-        'end_time',
-        'subject',
-        'teacher',
+        'type',
+        'subjects',
+        'dismissal_time',
     ];
 }
