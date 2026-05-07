@@ -142,9 +142,9 @@ class AgentController extends Controller
 
                     $result = $this->executeLocalFunction($name, $args);
 
-                    // Tambahkan hasil fungsi ke history untuk dikirim balik
+                    // Tambahkan hasil fungsi ke history untuk dikirim balik (Pake role: function!)
                     $currentRequestHistory[] = [
-                        'role' => 'user',
+                        'role' => 'function',
                         'parts' => [
                             [
                                 'functionResponse' => [
@@ -175,7 +175,8 @@ class AgentController extends Controller
 
     private function callGemini($apiKey, $contents, $tools, $systemInstruction)
     {
-        $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
+        // Pake model 1.5-flash biar lebih stabil kuotanya
+        $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
             'contents' => $contents,
             'system_instruction' => ['parts' => [['text' => $systemInstruction]]],
             'tools' => $tools
@@ -184,7 +185,7 @@ class AgentController extends Controller
         if (!$response->successful()) {
             Log::error('Gemini API request failed', [
                 'status' => $response->status(),
-                'body' => substr($response->body(), 0, 500)
+                'body' => substr($response->body(), 0, 1000)
             ]);
             return ['error' => true, 'status' => $response->status(), 'data' => null];
         }
