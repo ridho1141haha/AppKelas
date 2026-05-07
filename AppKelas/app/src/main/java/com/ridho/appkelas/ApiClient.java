@@ -16,7 +16,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
  */
 public class ApiClient {
 
-    private static final String BASE_URL = "http://192.168.137.1:8080/api/"; 
+    private static final String BASE_URL = "https://appkelas-production.up.railway.app/api/"; 
     private static Retrofit retrofit = null;
 
     public static Retrofit getClient(Context context) {
