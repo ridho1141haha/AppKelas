@@ -27,16 +27,20 @@ class AgentController extends Controller
         if (empty($apiKeys)) return response()->json(['success' => false, 'reply' => '❌ No API Key.']);
 
         try {
+            // 1. Load History & Tambahkan Pesan User
             $history = Cache::get($cacheKey, []);
-            $history[] = ['role' => 'user', 'parts' => [['text' => $message]]];
+            $history[] = [
+                'role' => 'user',
+                'parts' => [['text' => $message]]
+            ];
 
             $tools = [
                 'function_declarations' => [
-                    ['name' => 'get_tasks', 'description' => 'Ambil daftar tugas sekolah.', 'parameters' => ['type' => 'object', 'properties' => (object)[]]],
-                    ['name' => 'get_schedules', 'description' => 'Ambil jadwal pelajaran.', 'parameters' => ['type' => 'object', 'properties' => (object)[]]],
+                    ['name' => 'get_tasks', 'description' => 'Melihat daftar tugas sekolah.', 'parameters' => ['type' => 'object', 'properties' => (object)[]]],
+                    ['name' => 'get_schedules', 'description' => 'Melihat jadwal pelajaran sekolah.', 'parameters' => ['type' => 'object', 'properties' => (object)[]]],
                     [
                         'name' => 'add_task',
-                        'description' => 'Tambah tugas baru.',
+                        'description' => 'Menambah tugas baru ke database.',
                         'parameters' => [
                             'type' => 'object',
                             'properties' => [
@@ -51,12 +55,12 @@ class AgentController extends Controller
             ];
 
             $today = now()->translatedFormat('l, d F Y');
-            $sysInst = "Kamu 'Asisten Kelas'. Hari ini $today. Jawab santai. Jika user tanya jadwal/tugas, panggil fungsi yang tersedia.";
+            $sysInst = "Kamu 'Asisten Kelas'. Hari ini $today. Jawab santai. Jika user tanya jadwal/tugas, panggil fungsi.";
 
-            $modelList = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-8b', 'gemini-flash-latest'];
+            $modelList = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-flash-latest'];
             $finalReply = null;
 
-            foreach ($apiKeys as $keyIndex => $currentKey) {
+            foreach ($apiKeys as $currentKey) {
                 foreach ($modelList as $modelName) {
                     $iter = 2;
                     while ($iter > 0) {
@@ -72,37 +76,59 @@ class AgentController extends Controller
 
                         if (!$response->successful()) {
                             $status = $response->status();
-                            if (in_array($status, [429, 503, 404, 401])) {
-                                break; // Pindah model/key
-                            }
-                            // Jika 400, tampilkan detail error biar Ridho bisa liat di HP
+                            if (in_array($status, [429, 503, 404, 401])) break;
+                            
                             $errBody = $response->json();
                             return response()->json([
                                 'success' => false, 
-                                'reply' => "⚠️ API Error ({$status}): " . ($errBody['error']['message'] ?? 'Check logs'),
+                                'reply' => "⚠️ API Error ({$status}): " . ($errBody['error']['message'] ?? 'Check JSON'),
                                 'debug' => $errBody
                             ]);
                         }
 
-                        $data = $response->json();
-                        $candidate = $data['candidates'][0] ?? null;
+                        $resData = $response->json();
+                        $candidate = $resData['candidates'][0] ?? null;
                         $content = $candidate['content'] ?? null;
                         if (!$content) break;
 
-                        $history[] = $content;
                         $part = $content['parts'][0] ?? null;
 
+                        // --- ⚡ HANDLING FUNCTION CALL ---
                         if (isset($part['functionCall'])) {
-                            $res = $this->executeLocalFunction($part['functionCall']['name'], $part['functionCall']['args'] ?? []);
+                            $name = $part['functionCall']['name'];
+                            $args = $part['functionCall']['args'] ?? (object)[];
+
+                            // Simpan ke history dengan format SNAKE_CASE (Penting buat request selanjutnya)
                             $history[] = [
-                                'role' => 'function', 
-                                'parts' => [['functionResponse' => ['name' => $part['functionCall']['name'], 'response' => ['result' => $res]]]]
+                                'role' => 'model',
+                                'parts' => [[
+                                    'function_call' => [
+                                        'name' => $name,
+                                        'args' => (object)$args
+                                    ]
+                                ]]
+                            ];
+
+                            // Eksekusi fungsi di Laravel
+                            $result = $this->executeLocalFunction($name, (array)$args);
+
+                            // Tambahkan response fungsi ke history
+                            $history[] = [
+                                'role' => 'function',
+                                'parts' => [[
+                                    'function_response' => [
+                                        'name' => $name,
+                                        'response' => (object)['content' => $result]
+                                    ]
+                                ]]
                             ];
                             continue;
                         } 
                         
+                        // --- ⚡ HANDLING TEXT RESPONSE ---
                         if (isset($part['text'])) {
                             $finalReply = $part['text'];
+                            $history[] = $content;
                             break 3;
                         }
                     }
@@ -110,11 +136,12 @@ class AgentController extends Controller
             }
 
             if ($finalReply) {
+                // Simpan history seimbang (User-AI-User...) ke Cache
                 Cache::put($cacheKey, array_slice($history, -6), now()->addMinutes(20));
                 return response()->json(['success' => true, 'reply' => $finalReply]);
             }
 
-            return response()->json(['success' => false, 'reply' => '⏳ Maaf, semua otak AI lagi limit.']);
+            return response()->json(['success' => false, 'reply' => '⏳ Semua model lagi limit.']);
 
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'reply' => '❌ Error: ' . $e->getMessage()], 500);
@@ -131,11 +158,11 @@ class AgentController extends Controller
                     return Schedule::select('day', 'subjects', 'dismissal_time')->get()->toArray();
                 case 'add_task': 
                     $task = Task::create($args);
-                    return "Tugas '{$task->title}' berhasil dicatat.";
-                default: return "Fungsi tidak ditemukan.";
+                    return "Tugas '{$task->title}' berhasil dicatat di database.";
+                default: return "Gak ada fungsi itu.";
             }
         } catch (\Exception $e) {
-            return "Error database: " . $e->getMessage();
+            return "Error DB: " . $e->getMessage();
         }
     }
 }
