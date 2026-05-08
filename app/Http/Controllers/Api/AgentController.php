@@ -14,7 +14,6 @@ class AgentController extends Controller
 {
     public function chat(Request $request)
     {
-        // 1. Handle input & Identitas User
         $message = $request->input('message') ?? $request->post('message') ?? 'Halo';
         $user = $request->user();
         $cacheKey = 'chat_history_' . ($user ? $user->id : 'guest');
@@ -25,16 +24,15 @@ class AgentController extends Controller
         }
 
         try {
-            // 2. Load Memory dari Cache (Maksimal 10 pesan terakhir)
+            // 1. Ambil History & Validasi Struktur (Wajib selang-seling User-Model)
             $history = Cache::get($cacheKey, []);
             
-            // Tambahkan pesan user baru ke history
+            // Tambahkan pesan user baru
             $history[] = [
                 'role' => 'user',
                 'parts' => [['text' => $message]]
             ];
 
-            // 🛠️ Definisi Tools
             $tools = [
                 'function_declarations' => [
                     [
@@ -64,9 +62,8 @@ class AgentController extends Controller
                 ]
             ];
 
-            // 📜 System Instruction
             $today = now()->translatedFormat('l, d F Y');
-            $systemInstruction = "Kamu adalah 'Asisten Kelas' yang ramah. Hari ini adalah $today. Kamu punya memori jangka pendek untuk mengingat obrolan sebelumnya. Gunakan tools untuk akses database.";
+            $systemInstruction = "Kamu adalah 'Asisten Kelas'. Hari ini $today. Kamu punya memori untuk mengingat obrolan sebelumnya.";
 
             $maxIterations = 5;
             while ($maxIterations > 0) {
@@ -74,16 +71,18 @@ class AgentController extends Controller
                 
                 $payload = [
                     'contents' => $history,
-                    'system_instruction' => [
-                        'parts' => [['text' => $systemInstruction]]
-                    ],
+                    'system_instruction' => ['parts' => [['text' => $systemInstruction]]],
                     'tools' => [['function_declarations' => $tools['function_declarations']]]
                 ];
 
                 $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={$apiKey}", $payload);
 
                 if (!$response->successful()) {
-                    return response()->json(['success' => false, 'reply' => '⚠️ Waduh, AI lagi pusing. Coba lagi ya!'], 500);
+                    $err = $response->json();
+                    Log::error('Gemini History Error', $err);
+                    // Jika error karena skema history, reset cache
+                    if ($response->status() === 400) { Cache::forget($cacheKey); }
+                    return response()->json(['success' => false, 'reply' => '⚠️ Gagal memproses pesan lanjutan. Coba lagi ya!', 'debug' => $err], 500);
                 }
 
                 $resData = $response->json();
@@ -91,6 +90,7 @@ class AgentController extends Controller
                 
                 if (!$content) break;
 
+                // TAMBAHKAN RESPON AI KE HISTORY (Penting biar gak error di chat selanjutnya)
                 $history[] = $content;
                 $part = $content['parts'][0] ?? null;
 
@@ -107,8 +107,8 @@ class AgentController extends Controller
                 } 
                 
                 if (isset($part['text'])) {
-                    // 3. Simpan History yang sudah diupdate ke Cache (Expired dalam 30 menit)
-                    // Kita simpan maksimal 10 elemen terakhir biar gak overload
+                    // Simpan history lengkap (User + Model) ke Cache
+                    // Kita simpan 10 exchange terakhir (User & AI)
                     $finalHistory = array_slice($history, -10);
                     Cache::put($cacheKey, $finalHistory, now()->addMinutes(30));
 
@@ -117,14 +117,13 @@ class AgentController extends Controller
                         'reply' => $part['text']
                     ]);
                 }
-
                 break;
             }
 
-            return response()->json(['success' => false, 'reply' => '❌ Maaf, proses gagal.']);
+            return response()->json(['success' => false, 'reply' => '❌ Gagal merespon.']);
 
         } catch (\Exception $e) {
-            Log::error('Memory Chat Error', ['msg' => $e->getMessage()]);
+            Log::error('Memory Fix Error', ['msg' => $e->getMessage()]);
             return response()->json(['success' => false, 'reply' => '❌ Error: ' . $e->getMessage()], 500);
         }
     }
