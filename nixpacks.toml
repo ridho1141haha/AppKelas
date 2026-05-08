@@ -1,5 +1,0 @@
-[phases.setup]
-aptPkgs = ["libpq-dev"]
-
-[phases.install]
-cmds = ["composer install --no-dev --optimize-autoloader"]
