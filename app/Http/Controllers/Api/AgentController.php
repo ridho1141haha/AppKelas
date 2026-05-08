@@ -65,7 +65,7 @@ class AgentController extends Controller
             $finalPrompt .= "\n\nUser: " . $message;
 
             // --- TEMBAK GEMINI (MODE TEXT ONLY - LEBIH STABIL) ---
-            $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+            $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={$apiKey}", [
                 'contents' => [
                     [
                         'role' => 'user',
