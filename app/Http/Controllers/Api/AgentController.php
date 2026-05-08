@@ -86,9 +86,13 @@ class AgentController extends Controller
                             // Jika Limit atau Error Server, coba model/key lain
                             if ($status === 429 || $status === 503 || $status === 404 || $status === 401) {
                                 Log::warning("Key #".($keyIndex+1)." Model {$modelName} gagal ({$status}), mencoba rotasi...");
-                                break; // Pindah ke model selanjutnya (atau key selanjutnya jika model abis)
+                                break; 
                             }
-                            return response()->json(['success' => false, 'reply' => "⚠️ API Error ({$status})"]);
+                            return response()->json([
+                                'success' => false, 
+                                'reply' => "⚠️ API Error ({$status})",
+                                'debug_body' => $response->json()
+                            ]);
                         }
 
                         $resData = $response->json();
