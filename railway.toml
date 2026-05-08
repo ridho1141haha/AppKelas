@@ -1,4 +1,5 @@
 [build]
+# Force rebuild 2026-05-07-08-30
 builder = "nixpacks"
 buildCommand = "composer install --no-dev --optimize-autoloader && chmod -R 777 storage bootstrap/cache"
 
