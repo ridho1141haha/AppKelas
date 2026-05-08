@@ -10,6 +10,7 @@ class AgentController extends Controller
 {
     public function chat(Request $request)
     {
+        // Rebuild trigger 2
         $apiKey = config('services.gemini.api_key');
         if (!$apiKey) return response()->json(['reply' => 'API Key Missing']);
 
