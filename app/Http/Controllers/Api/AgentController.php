@@ -13,15 +13,20 @@ class AgentController extends Controller
 {
     public function chat(Request $request)
     {
-        // Handle input dari Android (Form atau JSON)
-        $message = $request->input('message') ?? $request->post('message') ?? 'Halo';
+        // Deteksi input message
+        $rawMessage = $request->input('message') ?? $request->post('message') ?? 'Halo';
+        $message = trim((string)$rawMessage);
         
+        if (empty($message)) {
+            $message = 'Halo';
+        }
+
         $apiKey = config('services.gemini.api_key');
 
         if (!$apiKey) {
             return response()->json([
                 'success' => false, 
-                'reply' => '❌ API Key Gemini belum diset.',
+                'reply' => '❌ API Key Gemini belum dikonfigurasi di Railway.',
             ], 500);
         }
 
@@ -31,17 +36,17 @@ class AgentController extends Controller
                 'function_declarations' => [
                     [
                         'name' => 'get_tasks', 
-                        'description' => 'Ambil daftar tugas atau PR siswa.', 
+                        'description' => 'Melihat daftar tugas sekolah atau PR yang belum selesai.', 
                         'parameters' => ['type' => 'object', 'properties' => (object)[]]
                     ],
                     [
                         'name' => 'get_schedules', 
-                        'description' => 'Ambil jadwal pelajaran sekolah.', 
+                        'description' => 'Melihat jadwal pelajaran sekolah.', 
                         'parameters' => ['type' => 'object', 'properties' => (object)[]]
                     ],
                     [
                         'name' => 'add_task',
-                        'description' => 'Tambah tugas baru ke database.',
+                        'description' => 'Menambah tugas baru ke database.',
                         'parameters' => [
                             'type' => 'object',
                             'properties' => [
@@ -60,43 +65,56 @@ class AgentController extends Controller
             $history = [
                 [
                     'role' => 'user',
-                    'parts' => [['text' => (string)$message]]
+                    'parts' => [['text' => $message]]
                 ]
             ];
 
             $today = now()->translatedFormat('l, d F Y');
-            $systemInstruction = "Kamu adalah 'Asisten Kelas'. Hari ini $today. Gunakan tools untuk melihat tugas/jadwal. Jawablah dengan singkat dan ramah.";
+            $systemInstructionText = "Kamu adalah 'Asisten Kelas' yang ramah. Hari ini $today. Gunakan tools untuk melihat tugas/jadwal. Jawablah dengan bahasa Indonesia yang santai dan informatif.";
 
-            $maxIterations = 3; // Batasi iterasi biar gak loop kelamaan
+            $maxIterations = 5;
             while ($maxIterations > 0) {
                 $maxIterations--;
                 
                 $payload = [
                     'contents' => $history,
                     'system_instruction' => [
-                        'parts' => [['text' => $systemInstruction]]
+                        'parts' => [['text' => $systemInstructionText]]
                     ],
                     'tools' => [$tools]
                 ];
 
-                // Pake v1 yang lebih stabil
-                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={$apiKey}", $payload);
+                // Pake v1beta dan model Pro sebagai alternatif yang lebih kuat
+                $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={$apiKey}", $payload);
 
                 if (!$response->successful()) {
                     $error = $response->json();
-                    Log::error('Gemini API Error', $error);
-                    return response()->json([
-                        'success' => false, 
-                        'reply' => '❌ Google AI Error (' . $response->status() . '): ' . ($error['error']['message'] ?? 'Service Busy'),
-                        'debug' => $error
-                    ], 500);
+                    Log::error('Gemini API Error', ['status' => $response->status(), 'error' => $error]);
+                    
+                    // Jika Pro juga NOT_FOUND, coba balik ke Flash tapi tanpa system_instruction
+                    if ($response->status() === 404) {
+                         unset($payload['system_instruction']);
+                         // Masukkan instruksi ke dalam pesan user pertama sebagai fallback
+                         $history[0]['parts'][0]['text'] = $systemInstructionText . "\n\nUser: " . $message;
+                         $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", $payload);
+                         if (!$response->successful()) {
+                             $error = $response->json();
+                             return response()->json(['success' => false, 'reply' => '❌ Google AI Error: ' . ($error['error']['message'] ?? 'Unknown'), 'debug' => $error], 500);
+                         }
+                    } else {
+                        return response()->json([
+                            'success' => false, 
+                            'reply' => '❌ Google AI Error (' . $response->status() . '): ' . ($error['error']['message'] ?? 'Service Unavailable'),
+                            'debug' => $error
+                        ], 500);
+                    }
                 }
 
                 $resData = $response->json();
                 $content = $resData['candidates'][0]['content'] ?? null;
                 
                 if (!$content) {
-                    return response()->json(['success' => false, 'reply' => '❌ AI tidak merespon.']);
+                    return response()->json(['success' => false, 'reply' => '❌ AI tidak memberikan respon.', 'raw' => $resData], 500);
                 }
 
                 $history[] = $content;
@@ -108,14 +126,15 @@ class AgentController extends Controller
                     
                     $result = $this->executeLocalFunction($name, $args);
                     
-                    // Format response fungsi yang benar untuk Gemini 1.5
                     $history[] = [
                         'role' => 'function', 
                         'parts' => [
                             [
                                 'functionResponse' => [
                                     'name' => $name,
-                                    'response' => ['result' => $result] // Wrap dalam object
+                                    'response' => [
+                                        'content' => $result
+                                    ]
                                 ]
                             ]
                         ]
@@ -130,11 +149,11 @@ class AgentController extends Controller
                 break;
             }
 
-            return response()->json(['success' => false, 'reply' => '❌ Proses terlalu lama.']);
+            return response()->json(['success' => false, 'reply' => '❌ Sesi chat terlalu panjang.']);
 
         } catch (\Exception $e) {
-            Log::error('Chat Exception', ['msg' => $e->getMessage()]);
-            return response()->json(['success' => false, 'reply' => '❌ Error: ' . $e->getMessage()], 500);
+            Log::error('Chat Fatal Error', ['msg' => $e->getMessage()]);
+            return response()->json(['success' => false, 'reply' => '❌ Sistem Error: ' . $e->getMessage()], 500);
         }
     }
 
@@ -143,17 +162,24 @@ class AgentController extends Controller
         try {
             switch ($name) {
                 case 'get_tasks': 
-                    return Task::select('title', 'subject', 'deadline')->get()->take(5)->toArray();
+                    $tasks = Task::select('title', 'subject', 'deadline')->where('status', '!=', 'completed')->get();
+                    return $tasks->isEmpty() ? "Tidak ada tugas yang perlu dikerjakan." : $tasks->toArray();
                 case 'get_schedules': 
-                    return Schedule::all()->take(5)->toArray();
+                    return Schedule::select('day', 'subjects', 'dismissal_time')->get()->toArray();
                 case 'add_task': 
-                    Task::create($args);
-                    return "Tugas berhasil ditambahkan.";
+                    $task = Task::create([
+                        'title' => $args['title'] ?? 'Tugas Baru',
+                        'subject' => $args['subject'] ?? 'Umum',
+                        'deadline' => $args['deadline'] ?? now()->format('Y-m-d'),
+                        'description' => $args['description'] ?? '',
+                        'status' => 'pending'
+                    ]);
+                    return "Tugas '" . $task->title . "' berhasil ditambahkan.";
                 default: 
                     return "Fungsi tidak ditemukan.";
             }
         } catch (\Exception $e) {
-            return "Error database: " . $e->getMessage();
+            return "Gagal akses database: " . $e->getMessage();
         }
     }
 }
